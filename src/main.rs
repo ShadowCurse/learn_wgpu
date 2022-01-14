@@ -120,7 +120,6 @@ struct CameraUniform {
 
 impl CameraUniform {
     fn new() -> Self {
-        use cgmath::SquareMatrix;
         Self {
             view_proj: cgmath::Matrix4::identity().into(),
         }
@@ -199,11 +198,12 @@ struct State {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     diffuse_bind_group: wgpu::BindGroup,
-    camera: Camera,
-    camera_buffer: wgpu::Buffer,
+    // camera: Camera,
+    // camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
+    depth_texture: texture::Texture,
 }
 
 impl State {
@@ -283,6 +283,8 @@ impl State {
             ],
             label: Some("Diffuse bind group"),
         });
+
+        let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
         let camera = Camera {
             eye: (0.0, 5.0, 10.0).into(),
@@ -395,7 +397,13 @@ impl State {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: texture::Texture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -426,11 +434,12 @@ impl State {
             vertex_buffer,
             index_buffer,
             diffuse_bind_group,
-            camera,
-            camera_buffer,
+            // camera,
+            // camera_buffer,
             camera_bind_group,
             instances,
             instance_buffer,
+            depth_texture,
         }
     }
 
@@ -440,6 +449,7 @@ impl State {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
     }
 
@@ -476,7 +486,14 @@ impl State {
                         store: true,
                     },
                 }],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
