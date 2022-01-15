@@ -1,5 +1,6 @@
 use anyhow::*;
 use image::GenericImageView;
+use std::path::Path;
 
 pub struct Texture {
     pub texture: wgpu::Texture,
@@ -9,6 +10,18 @@ pub struct Texture {
 
 impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
+    pub fn load<P: AsRef<Path>>(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        path: P,
+    ) -> Result<Self> {
+        let path_copy = path.as_ref().to_path_buf();
+        let label = path_copy.to_str();
+
+        let img = image::open(path)?;
+        Self::from_image(device, queue, &img, label)
+    }
 
     pub fn from_bytes(
         device: &wgpu::Device,
@@ -26,7 +39,7 @@ impl Texture {
         img: &image::DynamicImage,
         label: Option<&str>,
     ) -> Result<Self> {
-        let rgba = img.as_rgba8().unwrap();
+        let rgba = img.to_rgba8();
         let dimensions = img.dimensions();
 
         let texture_size = wgpu::Extent3d {
@@ -52,7 +65,7 @@ impl Texture {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            rgba,
+            &rgba,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: std::num::NonZeroU32::new(4 * dimensions.0),
@@ -78,7 +91,11 @@ impl Texture {
         })
     }
 
-    pub fn create_depth_texture(device: &wgpu::Device, config: &wgpu::SurfaceConfiguration, label: &str) -> Self {
+    pub fn create_depth_texture(
+        device: &wgpu::Device,
+        config: &wgpu::SurfaceConfiguration,
+        label: &str,
+    ) -> Self {
         let size = wgpu::Extent3d {
             width: config.width,
             height: config.height,
@@ -109,6 +126,10 @@ impl Texture {
             ..Default::default()
         });
 
-        Self { texture, view, sampler }
+        Self {
+            texture,
+            view,
+            sampler,
+        }
     }
 }
