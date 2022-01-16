@@ -55,6 +55,82 @@ impl CameraUniform {
     }
 }
 
+#[derive(Debug, Default)]
+struct CameraController {
+    speed: f32,
+    forward: bool,
+    backward: bool,
+    left: bool,
+    right: bool,
+}
+
+impl CameraController {
+    pub fn new(speed: f32) -> Self {
+        Self {
+            speed,
+            ..Default::default()
+        }
+    }
+
+    pub fn process_event(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput {
+                input:
+                    KeyboardInput {
+                        state,
+                        virtual_keycode: Some(keycode),
+                        ..
+                    },
+                ..
+            } => {
+                let pressed = *state == ElementState::Pressed;
+                match keycode {
+                    VirtualKeyCode::W => {
+                        self.forward = pressed;
+                        true
+                    }
+                    VirtualKeyCode::S => {
+                        self.backward = pressed;
+                        true
+                    }
+                    VirtualKeyCode::A => {
+                        self.left = pressed;
+                        true
+                    }
+                    VirtualKeyCode::D => {
+                        self.right = pressed;
+                        true
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub fn update_camera(&self, camera: &mut Camera) {
+        let forward = camera.target - camera.eye;
+        let forward_norm = forward.normalize();
+        let forward_mag = forward.magnitude();
+
+        if self.forward && forward_mag > self.speed {
+            camera.eye += forward * self.speed;
+        }
+        if self.backward {
+            camera.eye -= forward * self.speed;
+        }
+
+        let right = forward_norm.cross(camera.up);
+
+        if self.right {
+            camera.eye = camera.target - (forward - right * self.speed).normalize() * forward_mag;
+        }
+        if self.left {
+            camera.eye = camera.target - (forward + right * self.speed).normalize() * forward_mag;
+        }
+    }
+}
+
 const NUM_INSTANCES_PER_ROW: u32 = 10;
 const SPACE_BETWEEN: f32 = 3.0;
 
@@ -118,8 +194,10 @@ struct State {
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
     diffuse_bind_group: wgpu::BindGroup,
-    // camera: Camera,
-    // camera_buffer: wgpu::Buffer,
+    camera: Camera,
+    camera_buffer: wgpu::Buffer,
+    camera_uniform: CameraUniform,
+    camera_controller: CameraController,
     camera_bind_group: wgpu::BindGroup,
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
@@ -251,6 +329,8 @@ impl State {
             label: Some("comera_bind_group"),
         });
 
+        let camera_controller = CameraController::new(0.1);
+
         let res_dir = std::path::Path::new(env!("OUT_DIR")).join("res");
         let obj_model = model::Model::load(
             &device,
@@ -345,8 +425,10 @@ impl State {
             size,
             render_pipeline,
             diffuse_bind_group,
-            // camera,
-            // camera_buffer,
+            camera,
+            camera_buffer,
+            camera_uniform,
+            camera_controller,
             camera_bind_group,
             instances,
             instance_buffer,
@@ -366,11 +448,19 @@ impl State {
         }
     }
 
-    fn input(&mut self, _event: &WindowEvent) -> bool {
-        false
+    fn input(&mut self, event: &WindowEvent) -> bool {
+        self.camera_controller.process_event(event)
     }
 
-    fn update(&mut self) {}
+    fn update(&mut self) {
+        self.camera_controller.update_camera(&mut self.camera);
+        self.camera_uniform.update_view_proj(&self.camera);
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::cast_slice(&[self.camera_uniform]),
+        );
+    }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
