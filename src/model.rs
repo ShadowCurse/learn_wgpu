@@ -43,6 +43,7 @@ impl Vertex for ModelVertex {
 pub struct Material {
     pub name: String,
     pub diffuse_texture: texture::Texture,
+    pub normal_texture: texture::Texture,
     pub bind_group: wgpu::BindGroup,
 }
 
@@ -85,6 +86,10 @@ impl Model {
             let diffuse_texture =
                 texture::Texture::load(device, queue, containing_folder.join(diffuse_path))?;
 
+            let normal_path = mat.normal_texture;
+            let normal_texture =
+                texture::Texture::load(device, queue, containing_folder.join(normal_path))?;
+
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout,
                 entries: &[
@@ -96,6 +101,14 @@ impl Model {
                         binding: 1,
                         resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::TextureView(&normal_texture.view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: wgpu::BindingResource::Sampler(&normal_texture.sampler),
+                    },
                 ],
                 label: None,
             });
@@ -103,6 +116,7 @@ impl Model {
             materials.push(Material {
                 name: mat.name,
                 diffuse_texture,
+                normal_texture,
                 bind_group,
             })
         }
