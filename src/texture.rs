@@ -8,6 +8,11 @@ pub struct Texture {
     pub sampler: wgpu::Sampler,
 }
 
+pub enum TextureType {
+    Texture,
+    Normal,
+}
+
 impl Texture {
     pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
@@ -15,12 +20,13 @@ impl Texture {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         path: P,
+        texture_type: TextureType,
     ) -> Result<Self> {
         let path_copy = path.as_ref().to_path_buf();
         let label = path_copy.to_str();
 
         let img = image::open(path)?;
-        Self::from_image(device, queue, &img, label)
+        Self::from_image(device, queue, &img, label, texture_type)
     }
 
     pub fn from_bytes(
@@ -28,9 +34,10 @@ impl Texture {
         queue: &wgpu::Queue,
         bytes: &[u8],
         label: &str,
+        texture_type: TextureType,
     ) -> Result<Self> {
         let img = image::load_from_memory(bytes)?;
-        Self::from_image(device, queue, &img, Some(label))
+        Self::from_image(device, queue, &img, Some(label), texture_type)
     }
 
     pub fn from_image(
@@ -38,6 +45,7 @@ impl Texture {
         queue: &wgpu::Queue,
         img: &image::DynamicImage,
         label: Option<&str>,
+        texture_type: TextureType,
     ) -> Result<Self> {
         let rgba = img.to_rgba8();
         let dimensions = img.dimensions();
@@ -53,7 +61,10 @@ impl Texture {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: match texture_type {
+                TextureType::Texture => wgpu::TextureFormat::Rgba8UnormSrgb,
+                TextureType::Normal => wgpu::TextureFormat::Rgba8Unorm,
+            },
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             label,
         });
