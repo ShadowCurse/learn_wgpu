@@ -1,5 +1,5 @@
 use crate::texture;
-use anyhow::*;
+use anyhow::{Context, Ok, Result};
 use cgmath::prelude::*;
 use wgpu::util::DeviceExt;
 
@@ -20,7 +20,7 @@ pub struct ModelVertex {
 impl Vertex for ModelVertex {
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<ModelVertex>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
                 wgpu::VertexAttribute {
@@ -96,12 +96,20 @@ impl Model {
         let mut materials = Vec::new();
         for mat in obj_materials {
             let diffuse_path = mat.diffuse_texture;
-            let diffuse_texture =
-                texture::Texture::load(device, queue, containing_folder.join(diffuse_path), texture::TextureType::Texture)?;
+            let diffuse_texture = texture::Texture::load(
+                device,
+                queue,
+                containing_folder.join(diffuse_path),
+                texture::TextureType::Texture,
+            )?;
 
             let normal_path = mat.normal_texture;
-            let normal_texture =
-                texture::Texture::load(device, queue, containing_folder.join(normal_path), texture::TextureType::Normal)?;
+            let normal_texture = texture::Texture::load(
+                device,
+                queue,
+                containing_folder.join(normal_path),
+                texture::TextureType::Normal,
+            )?;
 
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout,
@@ -131,7 +139,7 @@ impl Model {
                 diffuse_texture,
                 normal_texture,
                 bind_group,
-            })
+            });
         }
 
         let mut meshes = Vec::new();
